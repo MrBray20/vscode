@@ -179,13 +179,12 @@ export function registerChatTitleActions() {
 						group: 'navigation',
 						when: ContextKeyExpr.and(
 							ChatContextKeys.isResponse,
-							ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key),
-							ChatContextKeys.lockedToCodingAgent.negate())
+							ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key))
 					},
 					{
 						id: MenuId.ChatEditingWidgetToolbar,
 						group: 'navigation',
-						when: ContextKeyExpr.and(applyingChatEditsFailedContextKey, ChatContextKeys.lockedToCodingAgent.negate()),
+						when: applyingChatEditsFailedContextKey,
 						order: 0
 					}
 				]

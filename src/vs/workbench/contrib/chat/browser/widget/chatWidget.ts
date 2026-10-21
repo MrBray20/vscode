@@ -3300,7 +3300,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Update capabilities for the locked agent
 		const agent = this.chatAgentService.getAgent(agentId);
 		this._updateAgentCapabilitiesContextKeys(agent);
-		const supportsCheckpoints = this._attachmentCapabilities.supportsCheckpoints ?? false;
+		const supportsCheckpoints = this._attachmentCapabilities.supportsCheckpoints ?? true;
 		this.listWidget?.updateRendererOptions({ restorable: supportsCheckpoints, editable: supportsCheckpoints && !this._readOnly, noFooter: false, progressMessageAtBottomOfResponse: true });
 		this.rerenderListIfConnected();
 	}

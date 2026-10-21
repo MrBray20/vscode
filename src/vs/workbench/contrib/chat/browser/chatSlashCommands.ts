@@ -289,6 +289,26 @@ export class ChatSlashCommandsContribution extends Disposable {
 				chatService.setChatSessionTitle(sessionResource, title);
 			}
 		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'rewind',
+			detail: nls.localize('rewind', "Restore to the previous checkpoint and undo edits"),
+			sortText: 'z2_rewind',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat],
+		}, async (_prompt, _progress, _history, _location, sessionResource) => {
+			await commandService.executeCommand('workbench.action.chat.restoreLastCheckpoint', sessionResource);
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'undo',
+			detail: nls.localize('undo', "Restore to the previous checkpoint and undo edits"),
+			sortText: 'z2_undo',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat],
+		}, async (_prompt, _progress, _history, _location, sessionResource) => {
+			await commandService.executeCommand('workbench.action.chat.restoreLastCheckpoint', sessionResource);
+		}));
 		const getAgentHostWorkingDirectory = (sessionResource: URI): URI | undefined => {
 			return agentHostWorkingDirectoryResolver.resolve(sessionResource)
 				?? workspaceContextService.getWorkspace().folders[0]?.uri;

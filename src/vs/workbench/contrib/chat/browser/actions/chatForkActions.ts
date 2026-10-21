@@ -48,10 +48,6 @@ export class ForkConversationAction extends Action2 {
 					when: ContextKeyExpr.and(
 						ChatContextKeys.isRequest,
 						ChatContextKeys.isFirstRequest.negate(),
-						ContextKeyExpr.or(
-							ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession),
-							ChatContextKeys.chatSessionSupportsFork
-						),
 						ChatContextKeys.readOnly.negate()
 					)
 				}

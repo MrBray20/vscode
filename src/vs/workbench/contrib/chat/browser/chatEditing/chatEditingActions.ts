@@ -499,7 +499,7 @@ registerAction2(class RemoveAction extends Action2 {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input').negate(), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, false), ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession), ChatContextKeys.readOnly.negate()),
+					when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input').negate(), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, false), ChatContextKeys.readOnly.negate()),
 				}
 			]
 		});
@@ -541,6 +541,7 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 			tooltip: localize2('chat.restoreCheckpoint.tooltip', "Restores workspace and chat to this point"),
 			f1: false,
 			category: CHAT_CATEGORY,
+			icon: Codicon.discard,
 			keybinding: {
 				primary: KeyCode.Delete,
 				mac: {
@@ -554,7 +555,13 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 					id: MenuId.ChatMessageCheckpoint,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession), ChatContextKeys.isFirstRequest.negate(), ChatContextKeys.readOnly.negate())
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.isFirstRequest.negate(), ChatContextKeys.readOnly.negate())
+				},
+				{
+					id: MenuId.ChatMessageFooter,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(ChatContextKeys.isResponse, ChatContextKeys.readOnly.negate())
 				}
 			]
 		});
@@ -572,7 +579,10 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 			return;
 		}
 
-		widget?.viewModel?.model.setCheckpoint(item.id);
+		const targetRequestId = isRequestVM(item) ? item.id : (isResponseVM(item) ? item.requestId : undefined);
+		if (targetRequestId) {
+			widget?.viewModel?.model.setCheckpoint(targetRequestId);
+		}
 		const confirmed = await restoreSnapshotWithConfirmation(accessor, item);
 		if (!confirmed) {
 			return;
@@ -600,7 +610,7 @@ registerAction2(class StartOverAction extends Action2 {
 					id: MenuId.ChatMessageCheckpoint,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession), ChatContextKeys.isFirstRequest, ChatContextKeys.readOnly.negate())
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.isFirstRequest, ChatContextKeys.readOnly.negate())
 				}
 			]
 		});
@@ -618,7 +628,10 @@ registerAction2(class StartOverAction extends Action2 {
 			return;
 		}
 
-		widget?.viewModel?.model.setCheckpoint(item.id);
+		const targetRequestId = isRequestVM(item) ? item.id : (isResponseVM(item) ? item.requestId : undefined);
+		if (targetRequestId) {
+			widget?.viewModel?.model.setCheckpoint(targetRequestId);
+		}
 		const confirmed = await restoreSnapshotWithConfirmation(accessor, item);
 		if (!confirmed) {
 			return;
@@ -642,7 +655,6 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.inChatSession,
 				ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true),
-				ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession),
 				ChatContextKeys.readOnly.negate()
 			)
 		});
@@ -652,12 +664,14 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const chatService = accessor.get(IChatService);
-		const widget = (isChatTreeItem(item) && chatWidgetService.getWidgetBySessionResource(item.sessionResource)) || chatWidgetService.lastFocusedWidget;
+		const widget = (isChatTreeItem(item) && chatWidgetService.getWidgetBySessionResource(item.sessionResource))
+			|| (URI.isUri(args[0]) && chatWidgetService.getWidgetBySessionResource(args[0]))
+			|| chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
 			item = widget?.getFocus();
 		}
 
-		const sessionResource = widget?.viewModel?.sessionResource ?? (isChatTreeItem(item) ? item.sessionResource : undefined);
+		const sessionResource = widget?.viewModel?.sessionResource ?? (isChatTreeItem(item) ? item.sessionResource : (URI.isUri(args[0]) ? args[0] : undefined));
 		if (!sessionResource) {
 			return;
 		}

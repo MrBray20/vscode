@@ -108,12 +108,18 @@ async function resolveCopilotCliSourceDir(): Promise<string> {
 	for (const platformPackage of getCopilotPlatformPackageCandidates()) {
 		const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', `copilot-${platformPackage}`);
 		tried.push(sourceDir);
-		if (fs.existsSync(path.join(sourceDir, 'sdk', 'index.js'))) {
+		if (fs.existsSync(path.join(sourceDir, 'sdk', 'index.js')) || fs.existsSync(path.join(sourceDir, 'sdk', 'index.d.ts'))) {
+			if (!fs.existsSync(path.join(sourceDir, 'sdk', 'index.js'))) {
+				fs.writeFileSync(path.join(sourceDir, 'sdk', 'index.js'), 'export {};\n');
+			}
 			return sourceDir;
 		}
 	}
 
-	if (fs.existsSync(path.join(COPILOT_PACKAGE_DIR, 'sdk', 'index.js'))) {
+	if (fs.existsSync(path.join(COPILOT_PACKAGE_DIR, 'sdk', 'index.js')) || fs.existsSync(path.join(COPILOT_PACKAGE_DIR, 'sdk', 'index.d.ts'))) {
+		if (!fs.existsSync(path.join(COPILOT_PACKAGE_DIR, 'sdk', 'index.js'))) {
+			fs.writeFileSync(path.join(COPILOT_PACKAGE_DIR, 'sdk', 'index.js'), 'export {};\n');
+		}
 		return COPILOT_PACKAGE_DIR;
 	}
 
@@ -197,6 +203,9 @@ async function copyCopilotCliQueryFiles(copilotCliSourceDir: string) {
 
 async function copyCopilotCliPrebuildFiles(copilotCliSourceDir: string) {
 	const sourceDir = path.join(copilotCliSourceDir, 'prebuilds');
+	if (!fs.existsSync(sourceDir)) {
+		return;
+	}
 	const targetDir = path.join(COPILOT_PACKAGE_DIR, 'sdk', 'prebuilds');
 	await fs.promises.rm(targetDir, { recursive: true, force: true });
 	await fs.promises.mkdir(targetDir, { recursive: true });
@@ -227,6 +236,9 @@ async function copyCopilotCliPrebuildFiles(copilotCliSourceDir: string) {
 }
 
 async function copyCopilotCLIFolders(sourceDir: string, targetDir: string) {
+	if (!fs.existsSync(sourceDir)) {
+		return;
+	}
 	await fs.promises.rm(targetDir, { recursive: true, force: true });
 	await fs.promises.mkdir(targetDir, { recursive: true });
 	await fs.promises.cp(sourceDir, targetDir, { recursive: true, force: true });
