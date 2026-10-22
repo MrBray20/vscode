@@ -26,7 +26,7 @@ The [client inventory](client-inventory.md) maps runtime callers, migration boun
 
 The GitHub engine uses shared [types](common/types.ts), [queue](common/requestQueue.ts), [scheduler](common/scheduler.ts), [backoff](common/backoff.ts), [cooldown state](common/cooldownState.ts), [response readers](common/responseReader.ts) and [operation waiters](common/operationWaiters.ts) with neutral names. These mechanisms do not interpret service-specific payloads. GitHub header/GraphQL policy stays in [GitHubRateLimitCoordinator](common/githubRateLimitCoordinator.ts).
 
-Shared schema parsers live in [client/schema.ts](common/client/schema.ts); domain clients compose them to validate API payloads. Strict [HTTP header readers](common/client/headers.ts) validate quota counters and Retry-After feedback. Shared [routing helpers](common/client/routing.ts) encode opaque identifiers, repository paths, and query parameters.
+Shared schema parsers live in [client/schema.ts](common/client/schema.ts); domain clients compose them to validate API payloads. `parse.object` retains unknown and explicitly undefined fields. Unchanged plain objects and arrays are reused; transformations copy only the affected containers without mutating the input. `parse.copyObject` creates a fresh object containing only defined schema fields; nested filtering uses copying parsers explicitly. Execution providers select permitted transport options, request bodies are separated from IPC metadata, and task-feed connection metadata and retained error diagnostics use copying parsers to exclude unused fields. Strict [HTTP header readers](common/client/headers.ts) validate quota counters and Retry-After feedback. Shared [routing helpers](common/client/routing.ts) encode opaque identifiers, repository paths, and query parameters.
 
 Response contracts preserve omitted fields and explicit nulls rather than substituting empty values. Check both GitHub's [REST OpenAPI descriptions](https://github.com/github/rest-api-description) and [GraphQL schema](https://docs.github.com/en/graphql/overview/public-schema), and verify discrepancies against the service implementation: published descriptions can lag nullable auto-merge metadata, review-comment positioning, and Actions job metadata. [Compatibility regressions](test/common/apiCompatibility.test.ts) exercise the real response parsers; consumers must not reintroduce stricter requirements for optional display metadata.
 
@@ -55,7 +55,7 @@ The acquired account client exposes [automations](common/missionControl/automati
 ```ts
 const client = await service.acquireDefaultAccountApiClient(signal);
 try {
-	const page = await client.automations.list({ owner: 'dmitrivMS', name: 'myRepo' }, signal);
+	const page = await client.automations.list({ owner: 'dmitrivMS', repo: 'myRepo' }, signal);
 	// Use page.data.automations; pagination remains explicit.
 } finally {
 	client.dispose();
@@ -63,6 +63,8 @@ try {
 ```
 
 `automations.listTools(signal)` and `automations.listTriggers(signal)` read the authenticated caller's unpaginated catalogs from `/agents/automations/tools` and `/agents/automations/triggers`. They return tool groups and trigger definitions, respectively, preserving field options, labels, permission scopes, and optional run-now support metadata without hard-coding the server's available tools or triggers.
+
+`automations.getConfiguration(repository, signal)` reads server-resolved enablement, caller management permission, and trigger/write policy constraints from `/agents/repos/{owner}/{repo}/automations/configuration` through the existing Mission Control binding. It preserves caller options and uses the transport's standard cache policy, honoring the service's `private, no-store` response header. Disabled automations are a valid response, not an error; missing or malformed fields and service failures reject rather than becoming disabled defaults. The response does not authorize a later mutation, which remains subject to server enforcement.
 
 The [Mission Control adapter](common/missionControl/missionControlClient.ts) is a portable domain wrapper over `IApiRequestProvider`; it parses JSON and validates domain responses in the caller. It uses the shared [request and response contracts](common/client/request.ts), with execution flags under `request.policy` and pagination/retry hints under `response.metadata`. The [local execution provider](common/client/localMissionControlRequestProvider.ts) owns credentials, service-host quota identity, retry/privacy policy, and buffered HTTP execution. The same provider supports existing in-process clients and the IPC server, without a parallel legacy transport implementation.
 
@@ -298,13 +300,13 @@ Arrays are concatenated in server order. Search, workflow, check, and task envel
 `returnPartial` does not add a new result wrapper: arrays do not report completeness, and `incomplete_results` keeps its server-defined meaning. Connections and Mission Control pages retain their continuation when the caller stops early. Non-paginated operations, including content trees and environment connections, do not expose collection options.
 
 ```ts
-const repository = await client.repositories.get({ owner: 'microsoft', name: 'vscode' }, signal);
+const repository = await client.repositories.get({ owner: 'microsoft', repo: 'vscode' }, signal);
 const issues = await client.search.issues('repo:microsoft/vscode', signal, {
 	caller: 'issuePicker',
 	query: { per_page: 20, sort: 'updated' },
 });
 await client.notifications.markRead(threadId, signal);
-const reviews = await client.reviews.list({ owner: 'microsoft', name: 'vscode' }, 42, signal, {
+const reviews = await client.reviews.list({ owner: 'microsoft', repo: 'vscode' }, 42, signal, {
 	query: { per_page: 100 },
 	maxPages: 10,
 	pageLimitBehavior: 'throw',
@@ -367,7 +369,7 @@ Cloud Automations retains its feature/account gates, private-repository prefligh
 
 ### Public repository files
 
-[The content client](common/content/contentClient.ts) separates ref resolution from raw-file download. `content.resolveRef(owner, repo, ref, signal, options)` requests `GET /repos/{owner}/{repo}/commits/{ref}` with the SHA media type and validates the returned commit. `content.getRawFile(owner, repo, commitSha, path, signal, options)` downloads `/{owner}/{repo}/{commitSha}/{path}` from the configured raw base. It does not resolve a ref, use the Contents API, or follow a response-provided `download_url`.
+[The content client](common/content/contentClient.ts) accepts a `RepositoryRef` (`{ owner, repo }`) for repository file, tree, blob, and ref reads, matching the core clients. `content.resolveRef(repository, ref, signal, options)` requests `GET /repos/{owner}/{repo}/commits/{ref}` with the SHA media type and validates the returned commit. `content.getRawFile(repository, commitSha, path, signal, options)` downloads `/{owner}/{repo}/{commitSha}/{path}` from the configured raw base. It does not resolve a ref, use the Contents API, or follow a response-provided `download_url`.
 
 Both operations take an `AbortSignal` and optional caller attribution and absolute deadline. A caller composing them supplies the same deadline to bound the whole operation. Raw content is returned as UTF-8 text without JSON/base64 parsing, preserving BOM and whitespace. Empty files and exactly 1 MiB are accepted; larger decoded byte streams fail explicitly and are cancelled. The raw provider validates the GET/text-only operation and the encoded repository/commit/file path on the execution side, not only in the facade. Returned HTTP status is checked by the caller's response parser.
 
