@@ -313,7 +313,7 @@ export function registerNewChatActions() {
 			const requestText = currentWidget?.viewModel?.model.checkpoint?.message.text;
 
 			// if the input has the same text that we just restored, clear it.
-			if (currentWidget?.inputEditor.getValue() === requestText) {
+			if (currentWidget?.getInput() === requestText) {
 				currentWidget?.input.setValue('', false);
 			}
 
